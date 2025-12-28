@@ -1,0 +1,16 @@
+---
+# Variables par défaut du rôle system_prep
+
+# Mot de passe hashé SHA-512 pour l'utilisateur hadoop
+# Pour générer : python3 -c "import crypt; print(crypt.crypt('votre_mdp', crypt.mksalt(crypt.METHOD_SHA512)))"
+hadoop_user_password: "$6$ronds.eUpJCgFgO/$yXZxg7J0.sZj3Gj9G8Uobw8Z3D5mH5zB8v0s1J9v8Yr7qT5lK8nG9mJ0pQ1rS2t3U4vW5xY6zA7bC8dE9f0a"  # hadoop123
+
+# Paquets système à installer
+system_packages:
+  - net-tools
+  - lsof
+  - vim
+  - curl
+  - wget
+  - python3-apt
+  - rsync

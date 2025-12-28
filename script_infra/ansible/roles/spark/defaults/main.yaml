@@ -1,0 +1,5 @@
+---
+# Defaults Spark
+spark_driver_memory: "1g"
+spark_executor_memory: "512m"
+spark_yarn_am_memory: "512m"

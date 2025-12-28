@@ -1,0 +1,75 @@
+---
+# ============================================
+# Installation Hadoop - COMMUN À TOUS LES NŒUDS
+# ============================================
+
+- name: Vérifier si Hadoop est déjà installé
+  stat:
+    path: "{{ hadoop_install_dir }}/bin/hadoop"
+  register: hadoop_installed
+  tags: [hadoop, install]
+
+- name: Afficher le statut de l'installation Hadoop
+  debug:
+    msg: "Hadoop déjà installé dans {{ hadoop_install_dir }}, installation ignorée"
+  when: hadoop_installed.stat.exists
+  tags: [hadoop, install]
+
+# ============================================
+# TÉLÉCHARGEMENT OPTIMISÉ (local → remote)
+# ============================================
+- name: Télécharger et distribuer Hadoop
+  import_tasks: download_local.yaml
+  when: not hadoop_installed.stat.exists
+  tags: [hadoop, install, download]
+
+# ============================================
+# INSTALLATION
+# ============================================
+- name: Bloc d'installation Hadoop (uniquement si absent)
+  block:
+    - name: Créer le répertoire d'installation Hadoop
+      file:
+        path: "{{ hadoop_install_dir }}"
+        state: directory
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        mode: 0755
+
+    - name: Extraire Hadoop dans {{ hadoop_install_dir }}
+      unarchive:
+        src: "/tmp/hadoop-{{ hadoop_version }}.tar.gz"
+        dest: "{{ hadoop_install_dir }}"
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+
+    - name: Vérifier l'installation de Hadoop
+      stat:
+        path: "{{ hadoop_install_dir }}/bin/hadoop"
+      register: hadoop_verify
+      failed_when: not hadoop_verify.stat.exists
+
+  when: not hadoop_installed.stat.exists
+  tags: [hadoop, install]
+
+- name: Afficher la version Hadoop installée
+  shell: "{{ hadoop_install_dir }}/bin/hadoop version | head -1"
+  register: hadoop_version_output
+  changed_when: false
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    PATH: "{{ hadoop_install_dir }}/bin:{{ ansible_env.PATH }}"
+  tags: [hadoop, install]
+
+- name: Résultat de l'installation
+  debug:
+    msg: "{{ hadoop_version_output.stdout }}"
+  tags: [hadoop, install]
+
+- name: Nettoyer l'archive Hadoop sur les nœuds distants
+  file:
+    path: "/tmp/hadoop-{{ hadoop_version }}.tar.gz"
+    state: absent
+  tags: [hadoop, install, cleanup]

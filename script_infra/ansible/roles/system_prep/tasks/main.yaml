@@ -1,0 +1,208 @@
+# ============================================
+# RÔLE : Préparation Système - VERSION COMPLÈTE
+# ============================================
+
+- name: Mettre à jour cache APT
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  tags: system
+
+- name: Mettre à niveau les paquets système
+  apt:
+    upgrade: full
+    autoremove: yes
+    autoclean: yes
+  tags: system
+  register: system_upgrade
+
+- name: Redémarrer si nécessaire
+  reboot:
+    reboot_timeout: 300
+  when: system_upgrade.changed
+  tags: system
+
+- name: Installer sudo
+  apt:
+    name: sudo
+    state: present
+  tags: system
+
+- name: Créer groupe hadoop
+  group:
+    name: "{{ hadoop_group }}"
+    state: present
+  tags: system
+
+- name: Créer utilisateur hadoop avec mot de passe
+  user:
+    name: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    create_home: yes
+    shell: /bin/bash
+    password: "{{ hadoop_user_password }}"
+    state: present
+  tags: system
+
+- name: Ajouter hadoop au groupe sudo
+  user:
+    name: "{{ hadoop_user }}"
+    groups: sudo
+    append: yes
+  tags: system
+
+- name: Configurer sudo sans mot de passe
+  lineinfile:
+    path: /etc/sudoers.d/hadoop
+    line: "{{ hadoop_user }} ALL=(ALL) NOPASSWD:ALL"
+    create: yes
+    mode: 0440
+    validate: 'visudo -cf %s'
+  tags: system
+
+# ============================================
+# CONFIGURATION SSH
+# ============================================
+
+- name: Configurer clés SSH pour hadoop
+  include_tasks: ssh_keys.yaml
+  tags: [system, ssh]
+
+# ============================================
+# CONFIGURATION RÉPERTOIRES
+# ============================================
+
+- name: Créer répertoire /data
+  file:
+    path: "{{ data_root }}"
+    state: directory
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0755
+  become: true
+  tags: system
+
+- name: Créer répertoires système Hadoop
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0755
+  loop:
+    - /var/run/hadoop
+    - /var/log/hadoop
+    - /var/lib/hadoop
+  become: true
+  tags: system
+
+# ============================================
+# INSTALLATION OUTILS
+# ============================================
+
+- name: Installer paquets réseau et outils
+  apt:
+    name:
+      - net-tools
+      - lsof
+      - vim
+      - curl
+      - wget
+      - dnsutils
+      - iputils-ping
+    state: present
+  tags: system
+
+# ============================================
+# CONFIGURATION SSH SERVEUR
+# ============================================
+
+- name: Désactiver UseDNS dans sshd_config
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?UseDNS'
+    line: 'UseDNS no'
+    backup: yes
+  become: true
+  notify: restart sshd
+  tags: system
+
+- name: Désactiver GSSAPIAuthentication dans sshd_config
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?GSSAPIAuthentication'
+    line: 'GSSAPIAuthentication no'
+    backup: yes
+  become: true
+  notify: restart sshd
+  tags: system
+
+# ============================================
+# CONFIGURATION IDENTITÉ SYSTÈME
+# ============================================
+
+- name: Définir le hostname du serveur (master, worker1, etc.)
+  hostname:
+    name: "{{ inventory_hostname }}"
+  become: true
+  tags: system
+
+# (Optionnel mais recommandé) Assurer que le hostname est dans /etc/hosts pour le loopback
+- name: Ajouter le hostname à 127.0.1.1 dans /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1'
+    line: "127.0.1.1 {{ inventory_hostname }}"
+    state: present
+  become: true
+  tags: system
+
+  # ============================================
+# Configuration /etc/hosts pour le cluster
+# ============================================
+
+- name: Sauvegarder /etc/hosts original
+  copy:
+    src: /etc/hosts
+    dest: /etc/hosts.backup
+    remote_src: yes
+    backup: yes
+  tags: [network]
+
+- name: Déployer fichier /etc/hosts avec noms du cluster
+  template:
+    src: hosts.j2
+    dest: /etc/hosts
+    mode: '0644'
+    owner: root
+    group: root
+  tags: [network]
+
+# ============================================
+# CONFIGURATION PARE-FEU (Vital pour Spark)
+# ============================================
+
+- name: Installer UFW
+  apt:
+    name: ufw
+    state: present
+  tags: system
+
+- name: Autoriser SSH
+  ufw:
+    rule: allow
+    name: OpenSSH
+  tags: system
+
+# IMPORTANT : On autorise tout le trafic venant des réseaux privés (192.168.x.x)
+# Cela couvre tes deux sous-réseaux : 192.168.50.x (Master) et 192.168.10.x (Workers)
+- name: Autoriser tout le trafic interne du cluster (192.168.0.0/16)
+  ufw:
+    rule: allow
+    src: 192.168.0.0/16
+  tags: system
+
+- name: Activer le pare-feu
+  ufw:
+    state: enabled
+  tags: system

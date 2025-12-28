@@ -1,0 +1,46 @@
+---
+# ============================================
+# RÔLE : Installation Java
+# Objectif : Installer OpenJDK 11
+# ============================================
+
+- name: Installer OpenJDK 11
+  apt:
+    name: "openjdk-{{ java_version }}-jdk"
+    state: present
+    update_cache: yes
+  tags: java
+
+- name: Installer paquets nécessaires
+  apt:
+    name:
+      - python3-apt
+      - python3-pip
+    state: present
+  tags: java
+
+- name: Définir JAVA_HOME globalement
+  lineinfile:
+    path: /etc/environment
+    regexp: '^JAVA_HOME='
+    line: "JAVA_HOME={{ java_home }}"
+  tags: java
+
+- name: Créer script de vérification Java
+  template:
+    src: java_env.sh.j2
+    dest: /usr/local/bin/java_env.sh
+    mode: '0755'
+  tags: java
+
+- name: Vérifier installation Java
+  command: "{{ java_home }}/bin/java -version"
+  register: java_version_check
+  changed_when: false
+  tags: java
+
+- name: Afficher version Java
+  debug:
+    msg: "{{ java_version_check.stderr_lines[0] }}"
+  tags: java
+  

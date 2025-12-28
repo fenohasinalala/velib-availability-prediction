@@ -1,0 +1,51 @@
+---
+- name: Vérifier si Spark est déjà installé
+  stat:
+    path: "{{ spark_install_dir }}/bin/spark-submit"
+  register: spark_installed
+  tags: [spark, install]
+
+- name: Télécharger et distribuer Spark (si absent)
+  import_tasks: download_local.yaml
+  when: not spark_installed.stat.exists
+  tags: [spark, install]
+
+- name: Créer le dossier parent /opt
+  file:
+    path: /opt
+    state: directory
+    mode: 0755
+  tags: [spark, install]
+
+- name: Supprimer ancienne installation si nécessaire
+  file:
+    path: "{{ spark_install_dir }}"
+    state: absent
+  when: not spark_installed.stat.exists
+  tags: [spark, install]
+
+- name: Extraire Spark vers /opt (Cela crée un dossier spark-x.x.x...)
+  unarchive:
+    src: "/tmp/spark-{{ spark_version }}-bin-hadoop3.tgz"
+    dest: "/opt"
+    remote_src: yes
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+  when: not spark_installed.stat.exists
+  tags: [spark, install]
+
+# Cette étape renomme le dossier extrait (ex: spark-3.5.4-bin-hadoop3) en /opt/spark
+- name: Renommer le dossier extrait en {{ spark_install_dir }}
+  command: "mv /opt/spark-{{ spark_version }}-bin-hadoop3 {{ spark_install_dir }}"
+  args:
+    creates: "{{ spark_install_dir }}"
+  when: not spark_installed.stat.exists
+  tags: [spark, install]
+
+- name: Fixer les permissions (Ligne 230 de ta ref)
+  file:
+    path: "{{ spark_install_dir }}"
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    recurse: yes
+  tags: [spark, install]

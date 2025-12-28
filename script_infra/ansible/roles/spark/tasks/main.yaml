@@ -1,0 +1,13 @@
+---
+# ============================================
+# RÔLE : Installation Spark
+# Objectif : Deployer Spark sur YARN pour ETL/ML
+# ============================================
+
+- name: Installer Spark
+  import_tasks: install.yaml
+  tags: [spark, install]
+
+- name: Configurer Spark
+  import_tasks: configure.yaml
+  tags: [spark, configure]

@@ -1,0 +1,69 @@
+---
+# Playbook principal : Déploiement cluster Hadoop/Spark
+
+- name: Phase 0 - Préparation système
+  hosts: cluster
+  become: true
+  become_user: root
+  gather_facts: true
+  
+  roles:
+    - system_prep
+
+- name: Phase 1 - Installation Java
+  hosts: cluster
+  become: true
+  become_user: root
+  
+  roles:
+    - java
+
+- name: Phase 2 - Installation Hadoop
+  hosts: cluster
+  become: true
+  become_user: root
+  
+  roles:
+    - hadoop
+
+- name: Phase 3 - Installation Spark
+  hosts: cluster
+  become: true
+  become_user: root
+  
+  roles:
+    - spark
+
+- name: Phase 4 - Validation et rapport
+  hosts: namenode
+  become: true
+  become_user: root
+  
+  roles:
+    - validation
+
+- name: Phase 5 - Afficher instructions
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  
+  tasks:
+    - name: Message final
+      debug:
+        msg: |
+          ============================================
+          🎉 DÉPLOIEMENT TERMINÉ !
+          
+          Vérifiez votre cluster :
+          - Web HDFS : http://{{ groups['namenode'][0] }}:9870
+          - Web YARN : http://{{ groups['namenode'][0] }}:8088
+          
+          Commandes utiles :
+          hdfs dfsadmin -report
+          yarn node -list
+          
+          Prochaine étape : Phase 2 (ETL Velib)
+          
+          Rapport détaillé : /home/hadoop/cluster_report.txt
+          ============================================
+    

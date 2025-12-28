@@ -1,0 +1,43 @@
+---
+# ============================================
+# Téléchargement LOCAL de Spark puis distribution
+# ============================================
+
+- name: Créer répertoire local pour les archives
+  file:
+    path: "{{ playbook_dir }}/archives"
+    state: directory
+    mode: 0755
+  delegate_to: localhost
+  run_once: true
+  become: false        
+  tags: [spark, download]
+
+- name: Vérifier si l'archive Spark existe déjà en local
+  stat:
+    path: "{{ playbook_dir }}/archives/spark-{{ spark_version }}-bin-hadoop3.tgz"
+  delegate_to: localhost
+  run_once: true
+  become: false        
+  register: local_spark_archive
+  tags: [spark, download]
+
+- name: Télécharger Spark UNE SEULE FOIS sur la machine Ansible
+  get_url:
+    url: "{{ spark_mirror }}"
+    dest: "{{ playbook_dir }}/archives/spark-{{ spark_version }}-bin-hadoop3.tgz"
+    mode: 0644
+    timeout: 600
+  delegate_to: localhost
+  run_once: true
+  become: false        
+  when: not local_spark_archive.stat.exists
+  tags: [spark, download]
+
+- name: Copier l'archive Spark vers les nœuds distants
+  copy:
+    src: "{{ playbook_dir }}/archives/spark-{{ spark_version }}-bin-hadoop3.tgz"
+    dest: "/tmp/spark-{{ spark_version }}-bin-hadoop3.tgz"
+    mode: 0644
+  # Ici on laisse become: yes (implicite ou global) car on écrit sur le serveur distant
+  tags: [spark, download, install]

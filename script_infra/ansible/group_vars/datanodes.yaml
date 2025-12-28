@@ -1,0 +1,9 @@
+---
+# Configuration spécifique DataNodes (8Go RAM)
+
+hadoop_datanode_services:
+  - start-dfs.sh
+
+# Optimisation pour VMs avec 8Go de RAM 
+yarn_nodemanager_memory_mb: 4096
+spark_executor_memory: "512m"

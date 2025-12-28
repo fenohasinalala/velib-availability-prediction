@@ -1,0 +1,38 @@
+================================================================================
+  RAPPORT DE DÉPLOIEMENT CLUSTER HADOOP/SPARK - ESIROI
+  Date : {{ ansible_date_time.iso8601 }}
+  Ansible Host : {{ ansible_hostname }}
+  ================================================================================
+
+NŒUDS DU CLUSTER :
+- NameNode : {{ groups['namenode'][0] }} ({{ hostvars[groups['namenode'][0]]['ansible_default_ipv4']['address'] }})
+- DataNodes : {% for node in groups['datanodes'] %}{{ node }} {% endfor %}
+
+CONFIGURATION :
+- Hadoop Version : {{ hadoop_version }}
+- Spark Version : {{ spark_version }}
+- Java Version : {{ java_version }}
+- HDFS Replication : {{ hdfs_replication }}
+
+RESSOURCES ALLOUÉES :
+{% for host in groups['cluster'] %}
+- {{ host }} : {{ hostvars[host]['ansible_memtotal_mb'] }} MB RAM
+{% endfor %}
+
+SERVICES VÉRIFIÉS :
+- HDFS NameNode : {% if 'NameNode' in jps_output.stdout %}OK{% else %}KO{% endif %}
+- HDFS DataNodes : {% if 'DataNode' in jps_output.stdout %}OK{% else %}KO{% endif %}
+- YARN ResourceManager : {% if 'ResourceManager' in jps_output.stdout %}OK{% else %}KO{% endif %}
+- YARN NodeManagers : {% if 'NodeManager' in jps_output.stdout %}OK{% else %}KO{% endif %}
+
+TESTS :
+- HDFS Write/Read : {{ 'OK' if hdfs_cat.rc == 0 else 'KO' }}
+- Spark on YARN : {{ 'OK' if spark_test.rc == 0 else 'KO' }}
+
+PROCHAINES ÉTAPES :
+1. Explorer HDFS : hdfs dfs -ls /
+2. UI NameNode : http://{{ groups['namenode'][0] }}:9870
+3. UI YARN : http://{{ groups['namenode'][0] }}:8088
+4. Lancer votre premier job Spark
+
+================================================================================

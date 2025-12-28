@@ -1,0 +1,85 @@
+---
+# Playbook pour tester la connectivité SSH après configuration
+# Usage: ansible-playbook -i inventory.yaml test-ssh-connectivity.yaml
+
+- name: Vérifier la configuration SSH
+  hosts: all
+  become: true
+  tasks:
+    
+    - name: Vérifier l'existence de la clé privée (master)
+      stat:
+        path: "/home/{{ hadoop_user }}/.ssh/id_rsa"
+      register: private_key
+      when: inventory_hostname in groups['namenode']
+      tags: check
+
+    - name: Vérifier authorized_keys
+      stat:
+        path: "/home/{{ hadoop_user }}/.ssh/authorized_keys"
+      register: auth_keys
+      tags: check
+
+    - name: Afficher statut des fichiers SSH
+      debug:
+        msg:
+          - "Node: {{ inventory_hostname }}"
+          - "authorized_keys exists: {{ auth_keys.stat.exists }}"
+          - "authorized_keys mode: {{ auth_keys.stat.mode | default('N/A') }}"
+      tags: check
+
+    - name: Afficher contenu authorized_keys
+      command: cat "/home/{{ hadoop_user }}/.ssh/authorized_keys"
+      register: auth_content
+      changed_when: false
+      become_user: "{{ hadoop_user }}"
+      tags: check
+
+    - name: Montrer authorized_keys
+      debug:
+        msg: "{{ auth_content.stdout_lines }}"
+      tags: check
+
+- name: Tester connectivité SSH depuis master
+  hosts: master
+  become: true
+  become_user: hadoop
+  vars:
+    ansible_pipelining: false
+  tasks:
+    
+    - name: Test SSH vers worker1
+      command: ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 worker1 'echo "SSH OK from worker1: $(hostname)"'
+      register: ssh_w1
+      changed_when: false
+      failed_when: false
+      tags: test
+
+    - name: Test SSH vers worker2
+      command: ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 worker2 'echo "SSH OK from worker2: $(hostname)"'
+      register: ssh_w2
+      changed_when: false
+      failed_when: false
+      tags: test
+
+    - name: Test SSH vers worker3
+      command: ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 worker3 'echo "SSH OK from worker3: $(hostname)"'
+      register: ssh_w3
+      changed_when: false
+      failed_when: false
+      tags: test
+
+    - name: Résultats des tests SSH
+      debug:
+        msg:
+          - "=== Tests de connectivité SSH depuis master ==="
+          - "worker1: {{ ssh_w1.stdout if ssh_w1.rc == 0 else 'FAILED - ' + (ssh_w1.stderr | default('Unknown error')) }}"
+          - "worker2: {{ ssh_w2.stdout if ssh_w2.rc == 0 else 'FAILED - ' + (ssh_w2.stderr | default('Unknown error')) }}"
+          - "worker3: {{ ssh_w3.stdout if ssh_w3.rc == 0 else 'FAILED - ' + (ssh_w3.stderr | default('Unknown error')) }}"
+      tags: test
+
+    - name: ÉCHEC si SSH ne fonctionne pas
+      fail:
+        msg: "La connectivité SSH vers les workers a échoué. Vérifiez la configuration."
+      when: ssh_w1.rc != 0 or ssh_w2.rc != 0 or ssh_w3.rc != 0
+      tags: test

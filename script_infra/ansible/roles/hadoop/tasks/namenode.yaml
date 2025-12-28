@@ -1,0 +1,139 @@
+---
+# ============================================
+# TÂCHES SPÉCIFIQUES NAMENODE
+# ============================================
+
+- name: Vérifier si le NameNode est déjà formaté
+  stat:
+    path: "{{ hdfs_namenode_dir }}/current/VERSION"
+  register: namenode_formatted
+  tags: [hadoop, namenode]
+
+- name: Formater le NameNode (première installation uniquement)
+  shell: |
+    {{ hadoop_install_dir }}/bin/hdfs namenode -format -force -nonInteractive
+  args:
+    executable: /bin/bash
+  when: not namenode_formatted.stat.exists
+  register: namenode_format_result
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  tags: [hadoop, namenode]
+
+- name: Afficher le résultat du formatage
+  debug:
+    msg: "NameNode formaté avec succès"
+  when: namenode_format_result is changed
+  tags: [hadoop, namenode]
+
+- name: Arrêter le NameNode (pour redémarrage propre)
+  shell: |
+    {{ hadoop_install_dir }}/bin/hdfs --daemon stop namenode
+  args:
+    executable: /bin/bash
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  failed_when: false
+  tags: [hadoop, namenode]
+
+- name: Attendre l'arrêt complet du NameNode
+  wait_for:
+    path: "{{ hadoop_install_dir }}/logs/hadoop-*-namenode-*.pid"
+    state: absent
+    timeout: 30
+  failed_when: false
+  tags: [hadoop, namenode]
+
+- name: Démarrer le NameNode
+  shell: |
+    {{ hadoop_install_dir }}/bin/hdfs --daemon start namenode
+  args:
+    executable: /bin/bash
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  register: namenode_start
+  tags: [hadoop, namenode]
+
+- name: Attendre que le processus NameNode démarre
+  pause:
+    seconds: 10
+  tags: [hadoop, namenode]
+
+- name: Vérifier les logs du NameNode en cas d'échec
+  shell: |
+    tail -50 {{ hadoop_install_dir }}/logs/hadoop-*-namenode-*.log 2>/dev/null || echo "Aucun log trouvé"
+  register: namenode_logs
+  when: namenode_start is failed
+  tags: [hadoop, namenode]
+
+- name: Afficher les logs d'erreur
+  debug:
+    msg: "{{ namenode_logs.stdout_lines }}"
+  when: namenode_start is failed
+  tags: [hadoop, namenode]
+
+- name: Vérifier que le NameNode écoute sur le port 9870
+  wait_for:
+    host: "{{ ansible_facts['default_ipv4']['address'] }}"
+    port: 9870
+    delay: 5
+    timeout: 60
+    state: started
+  tags: [hadoop, namenode]
+
+- name: Tester l'API Web du NameNode
+  uri:
+    url: "http://{{ ansible_facts['default_ipv4']['address'] }}:9870/jmx"
+    method: GET
+    status_code: 200
+    timeout: 10
+  register: namenode_web_test
+  retries: 3
+  delay: 5
+  tags: [hadoop, namenode]
+
+- name: Arrêter le ResourceManager (pour redémarrage propre)
+  shell: |
+    {{ hadoop_install_dir }}/bin/yarn --daemon stop resourcemanager
+  args:
+    executable: /bin/bash
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  failed_when: false
+  tags: [hadoop, namenode, yarn]
+
+- name: Démarrer le ResourceManager YARN
+  shell: |
+    {{ hadoop_install_dir }}/bin/yarn --daemon start resourcemanager
+  args:
+    executable: /bin/bash
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  tags: [hadoop, namenode, yarn]
+
+- name: Attendre que le ResourceManager démarre
+  pause:
+    seconds: 10
+  tags: [hadoop, namenode, yarn]
+
+- name: Vérifier que le ResourceManager écoute sur le port 8088
+  wait_for:
+    host: "0.0.0.0"
+    port: 8088
+    delay: 5
+    timeout: 60
+    state: started
+  tags: [hadoop, namenode, yarn]
+
+- name: Afficher l'état du NameNode
+  debug:
+    msg:
+      - "✅ NameNode démarré avec succès"
+      - "NameNode Web UI: http://{{ ansible_facts['default_ipv4']['address'] }}:9870"
+      - "ResourceManager Web UI: http://{{ ansible_facts['default_ipv4']['address'] }}:8088"
+  tags: [hadoop, namenode]

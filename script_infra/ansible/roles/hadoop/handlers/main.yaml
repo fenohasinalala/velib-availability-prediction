@@ -1,0 +1,7 @@
+---
+# Handlers Hadoop
+
+- name: restart hadoop
+  shell: "{{ hadoop_install_dir }}/sbin/stop-dfs.sh && {{ hadoop_install_dir }}/sbin/start-dfs.sh"
+  become_user: "{{ hadoop_user }}"
+  

@@ -1,0 +1,26 @@
+---
+# ============================================
+# RÔLE : Hadoop - Orchestrateur Principal
+# ============================================
+
+# Étape 1: Installation commune à tous les nœuds
+- name: Installer Hadoop sur tous les nœuds
+  import_tasks: install.yaml
+  tags: [hadoop, install]
+
+# Étape 2: Configuration commune à tous les nœuds
+- name: Configurer Hadoop sur tous les nœuds
+  import_tasks: configure.yaml
+  tags: [hadoop, configure]
+
+# Étape 3: Configuration spécifique NameNode
+- name: Configurer et démarrer NameNode
+  import_tasks: namenode.yaml
+  when: inventory_hostname in groups['namenode']
+  tags: [hadoop, namenode]
+
+# Étape 4: Configuration spécifique DataNodes
+- name: Configurer et démarrer DataNodes
+  import_tasks: datanode.yaml
+  when: inventory_hostname in groups['datanodes']
+  tags: [hadoop, datanode]

@@ -1,0 +1,8 @@
+---
+# Handlers pour le rôle system_prep
+
+- name: restart sshd
+  service:
+    name: ssh
+    state: restarted
+  become: true

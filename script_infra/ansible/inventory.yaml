@@ -1,0 +1,33 @@
+---
+# Inventory ESIROI - Configuration avec ports SSH custom
+
+all:
+  vars:
+    ansible_user: node
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_bd
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    ansible_python_interpreter: /usr/bin/python3
+
+namenode:
+  hosts:
+    master:
+      ansible_host: 192.168.50.160
+
+datanodes:
+  hosts:
+    worker1:
+      ansible_host: 192.168.50.161
+      ansible_port: 22
+    
+    worker2:
+      ansible_host: 192.168.50.162
+      ansible_port: 22
+    
+    worker3:
+      ansible_host: 192.168.50.163
+      ansible_port: 22
+
+cluster:
+  children:
+    namenode:
+    datanodes:

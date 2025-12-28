@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Replication Factor -->
+    <property>
+        <name>dfs.replication</name>
+        <value>{{ hdfs_replication }}</value>
+    </property>
+    
+    <!-- NameNode Directory (on NameNode only) -->
+    {% if inventory_hostname in groups['namenode'] %}
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file://{{ hdfs_namenode_dir }}</value>
+    </property>
+    {% endif %}
+    
+    <!-- DataNode Directory (on all nodes) -->
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>file://{{ hdfs_datanode_dir }}</value>
+    </property>
+    
+    <!-- Disable Permissions (for easier setup) -->
+    <property>
+        <name>dfs.permissions.enabled</name>
+        <value>false</value>
+    </property>
+    
+    <!-- NameNode Bind Addresses -->
+    <property>
+        <name>dfs.namenode.rpc-bind-host</name>
+        <value>0.0.0.0</value>
+    </property>
+    
+    <property>
+        <name>dfs.namenode.http-bind-host</name>
+        <value>0.0.0.0</value>
+    </property>
+    
+    <property>
+        <name>dfs.namenode.servicerpc-bind-host</name>
+        <value>0.0.0.0</value>
+    </property>
+    
+    <!-- DataNode Addresses -->
+    <property>
+        <name>dfs.datanode.address</name>
+        <value>0.0.0.0:9866</value>
+    </property>
+    
+    <property>
+        <name>dfs.datanode.http.address</name>
+        <value>0.0.0.0:9864</value>
+    </property>
+    
+    <property>
+        <name>dfs.datanode.ipc.address</name>
+        <value>0.0.0.0:9867</value>
+    </property>
+    
+    <!-- Web UI Settings -->
+    <property>
+        <name>dfs.namenode.http-address</name>
+        <value>0.0.0.0:9870</value>
+    </property>
+    
+    <!-- Secondary NameNode -->
+    <property>
+        <name>dfs.namenode.secondary.http-address</name>
+        <value>0.0.0.0:9868</value>
+    </property>
+</configuration>

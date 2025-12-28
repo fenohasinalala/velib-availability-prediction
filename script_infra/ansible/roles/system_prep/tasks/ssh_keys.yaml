@@ -1,0 +1,97 @@
+---
+# Configuration des clés SSH pour l'utilisateur hadoop
+# À intégrer dans roles/system_prep/tasks/main.yaml
+
+- name: Créer répertoire .ssh pour hadoop
+  file:
+    path: "/home/{{ hadoop_user }}/.ssh"
+    state: directory
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: '0700'
+  become: true
+  tags: [system, ssh]
+
+- name: Générer clé SSH pour hadoop (sur master uniquement)
+  shell: |
+    if [ ! -f /home/{{ hadoop_user }}/.ssh/id_rsa ]; then
+      sudo -u {{ hadoop_user }} ssh-keygen -t rsa -b 2048 -f /home/{{ hadoop_user }}/.ssh/id_rsa -N ''
+    fi
+  args:
+    creates: "/home/{{ hadoop_user }}/.ssh/id_rsa"
+  become: true
+  when: inventory_hostname in groups['namenode']
+  tags: [system, ssh]
+
+- name: Récupérer la clé publique depuis master
+  slurp:
+    src: "/home/{{ hadoop_user }}/.ssh/id_rsa.pub"
+  register: master_public_key
+  become: true
+  when: inventory_hostname in groups['namenode']
+  tags: [system, ssh]
+
+- name: Enregistrer la clé publique comme fact
+  set_fact:
+    hadoop_master_pubkey: "{{ master_public_key['content'] | b64decode }}"
+  when: inventory_hostname in groups['namenode']
+  tags: [system, ssh]
+
+- name: Distribuer la clé publique aux autres nœuds
+  set_fact:
+    hadoop_master_pubkey: "{{ hostvars[groups['namenode'][0]]['hadoop_master_pubkey'] }}"
+  when: inventory_hostname not in groups['namenode']
+  tags: [system, ssh]
+
+- name: Créer fichier authorized_keys
+  file:
+    path: "/home/{{ hadoop_user }}/.ssh/authorized_keys"
+    state: touch
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: '0600'
+  become: true
+  tags: [system, ssh]
+
+- name: Ajouter la clé publique de master dans authorized_keys
+  lineinfile:
+    path: "/home/{{ hadoop_user }}/.ssh/authorized_keys"
+    line: "{{ hadoop_master_pubkey }}"
+    state: present
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: '0600'
+    create: yes
+  become: true
+  when: hadoop_master_pubkey is defined
+  tags: [system, ssh]
+
+- name: Configurer SSH client pour hadoop
+  copy:
+    content: |
+      Host master worker1 worker2 worker3
+        StrictHostKeyChecking no
+        UserKnownHostsFile /dev/null
+        IdentityFile /home/{{ hadoop_user }}/.ssh/id_rsa
+      
+      Host *
+        ServerAliveInterval 60
+        ServerAliveCountMax 3
+        ConnectTimeout 10
+    dest: "/home/{{ hadoop_user }}/.ssh/config"
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: '0600'
+  become: true
+  tags: [system, ssh]
+
+- name: Vérifier les permissions du répertoire .ssh
+  file:
+    path: "/home/{{ hadoop_user }}/.ssh"
+    state: directory
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: '0700'
+    recurse: yes
+  become: true
+  tags: [system, ssh]

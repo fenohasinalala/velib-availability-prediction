@@ -1,0 +1,27 @@
+---
+# Playbook reset : Arrête et nettoie le cluster
+
+- name: Reset cluster Hadoop
+  hosts: cluster
+  become: true
+  become_user: root
+  
+  tasks:
+    - name: Arrêter services Hadoop
+      shell: "{{ hadoop_install_dir }}/sbin/stop-all.sh"
+      become_user: "{{ hadoop_user }}"
+      ignore_errors: yes
+
+    - name: Nettoyer répertoires HDFS
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ hdfs_namenode_dir }}"
+        - "{{ hdfs_datanode_dir }}"
+        - "{{ hdfs_tmp_dir }}"
+
+    - name: Ajouter message
+      debug:
+        msg: "Cluster reset ! Relancez playbook-cluster-setup.yaml"
+    

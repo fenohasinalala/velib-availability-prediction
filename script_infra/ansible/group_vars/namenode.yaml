@@ -1,0 +1,10 @@
+---
+# Configuration spécifique NameNode (12Go RAM)
+
+hadoop_namenode_services:
+  - start-dfs.sh
+  - start-yarn.sh
+
+# Ports web
+namenode_web_port: 9870
+yarn_web_port: 8088

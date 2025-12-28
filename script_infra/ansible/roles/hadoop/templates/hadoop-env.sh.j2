@@ -1,0 +1,16 @@
+# Configuration générée par Ansible - ESIROI
+  export JAVA_HOME={{ java_home }}
+  export HADOOP_HOME={{ hadoop_install_dir }}
+  export HADOOP_CONF_DIR={{ hadoop_install_dir }}/etc/hadoop
+
+# Optimisation mémoire
+{% if inventory_hostname in groups['namenode'] %}
+export HADOOP_HEAPSIZE_MAX=2048
+{% else %}
+export HADOOP_HEAPSIZE_MAX=1024
+{% endif %}
+
+export HADOOP_LOG_DIR=/var/log/hadoop
+export HADOOP_PID_DIR=/var/run/hadoop
+export HADOOP_PID_DIR={{ hadoop_install_dir }}/pids
+export YARN_PID_DIR={{ hadoop_install_dir }}/pids

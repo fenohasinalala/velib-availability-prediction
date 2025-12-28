@@ -1,0 +1,46 @@
+---
+# ============================================
+# Téléchargement LOCAL puis distribution
+# ============================================
+
+- name: Créer répertoire local pour les archives
+  file:
+    path: "{{ playbook_dir }}/archives"
+    state: directory
+    mode: 0755
+  delegate_to: localhost
+  run_once: true
+  tags: [hadoop, download]
+
+- name: Vérifier si l'archive Hadoop existe déjà en local
+  stat:
+    path: "{{ playbook_dir }}/archives/hadoop-{{ hadoop_version }}.tar.gz"
+  delegate_to: localhost
+  run_once: true
+  register: local_hadoop_archive
+  tags: [hadoop, download]
+
+- name: Télécharger Hadoop UNE SEULE FOIS sur la machine Ansible
+  get_url:
+    url: "{{ hadoop_mirror }}"
+    dest: "{{ playbook_dir }}/archives/hadoop-{{ hadoop_version }}.tar.gz"
+    mode: 0644
+    timeout: 600
+  delegate_to: localhost
+  run_once: true
+  when: not local_hadoop_archive.stat.exists
+  tags: [hadoop, download]
+
+- name: Afficher la progression du téléchargement
+  debug:
+    msg: "Archive Hadoop disponible : {{ playbook_dir }}/archives/hadoop-{{ hadoop_version }}.tar.gz"
+  run_once: true
+  tags: [hadoop, download]
+
+- name: Copier l'archive Hadoop vers les nœuds distants
+  copy:
+    src: "{{ playbook_dir }}/archives/hadoop-{{ hadoop_version }}.tar.gz"
+    dest: "/tmp/hadoop-{{ hadoop_version }}.tar.gz"
+    mode: 0644
+  when: not hadoop_installed.stat.exists
+  tags: [hadoop, download]

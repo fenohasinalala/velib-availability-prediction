@@ -1,0 +1,100 @@
+---
+# ============================================
+# RÔLE : Validation Cluster
+# Objectif : Tester et générer rapport
+# ============================================
+
+- name: Attendre que NameNode soit prêt
+  wait_for:
+    host: "{{ groups['namenode'][0] }}"
+    port: 9870
+    timeout: 120
+  run_once: true
+  tags: validation
+
+- name: Attendre que YARN soit prêt
+  wait_for:
+    host: "{{ groups['namenode'][0] }}"
+    port: 8088
+    timeout: 120
+  run_once: true
+  tags: validation
+
+- name: Vérifier processus Java
+  shell: "jps | grep -E 'NameNode|DataNode|ResourceManager|NodeManager'"
+  register: jps_output
+  changed_when: false
+  tags: validation
+
+- name: Exécuter rapport HDFS
+  command: "{{ hadoop_install_dir }}/bin/hdfs dfsadmin -report"
+  become_user: "{{ hadoop_user }}"
+  register: hdfs_report
+  changed_when: false
+  tags: validation
+
+- name: Créer répertoire test HDFS
+  command: "{{ hadoop_install_dir }}/bin/hdfs dfs -mkdir -p /test_ansible"
+  become_user: "{{ hadoop_user }}"
+  run_once: true
+  tags: validation
+  ignore_errors: yes
+
+- name: Créer fichier local de test
+  copy:
+    content: "ESIROI Ansible Test"
+    dest: /tmp/test_ansible.txt
+  run_once: true
+  tags: validation
+
+- name: Copier fichier test vers HDFS
+  command: "{{ hadoop_install_dir }}/bin/hdfs dfs -put -f /tmp/test_ansible.txt /test_ansible/"
+  become_user: "{{ hadoop_user }}"
+  run_once: true
+  tags: validation
+  ignore_errors: yes
+
+- name: Lire fichier depuis HDFS
+  command: "{{ hadoop_install_dir }}/bin/hdfs dfs -cat /test_ansible/test_ansible.txt"
+  become_user: "{{ hadoop_user }}"
+  register: hdfs_cat
+  run_once: true
+  tags: validation
+
+- name: Vérifier contenu HDFS
+  debug:
+    msg: "HDFS test content: {{ hdfs_cat.stdout }}"
+  run_once: true
+  tags: validation
+
+- name: Tester Spark sur YARN
+  command: |
+    {{ spark_install_dir }}/bin/spark-submit 
+    --class org.apache.spark.examples.SparkPi 
+    --master yarn 
+    --deploy-mode cluster 
+    --driver-memory {{ spark_driver_memory }} 
+    --executor-memory {{ spark_executor_memory }} 
+    {{ spark_install_dir }}/examples/jars/spark-examples_*.jar 5
+  become_user: "{{ hadoop_user }}"
+  run_once: true
+  register: spark_test
+  tags: validation
+  ignore_errors: yes
+
+- name: Récupérer résultat Spark
+  debug:
+    msg: "{{ spark_test.stdout_lines[-5:] }}"
+  when: spark_test.rc == 0
+  run_once: true
+  tags: validation
+
+- name: Générer rapport de déploiement
+  template:
+    src: deployment_report.j2
+    dest: /home/{{ hadoop_user }}/cluster_report.txt
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+  run_once: true
+  tags: validation
+  

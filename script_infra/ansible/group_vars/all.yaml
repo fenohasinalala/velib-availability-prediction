@@ -1,0 +1,56 @@
+---
+# Variables globales 
+
+# ============================================================
+# CONFIGURATION VERSIONS (depuis votre historique)
+# ============================================================
+java_version: "11"
+hadoop_version: "3.4.2"
+spark_version: "3.5.7"
+
+# ============================================================
+# CONFIGURATION SYSTEME
+# ============================================================
+hadoop_user: "hadoop"
+hadoop_group: "hadoop"
+# Mot de passe : 000 (à changer !)
+hadoop_user_password: "$6$rounds=656000$DEFLhwmrRnKb.Tx7$YJdSza6Znxz7ihdYH0hZv1cNfCqHguzja/T61gJed8q.VoeGypQGacebc3fIoU8HioSHhcJ1tsHGNjl9jOHoe0"
+
+namenode_host: "{{ groups['namenode'][0] }}"
+
+# ============================================================
+# CHEMINS D'INSTALLATION
+# ============================================================
+hadoop_install_dir: "/usr/local/hadoop"
+spark_install_dir: "/opt/spark"
+data_root: "/data/hdfs"
+java_home: "/usr/lib/jvm/java-{{ java_version }}-openjdk-amd64"
+
+# ============================================================
+# URLs DE TÉLÉCHARGEMENT
+# ============================================================
+hadoop_mirror: "https://archive.apache.org/dist/hadoop/common/hadoop-{{ hadoop_version }}/hadoop-{{ hadoop_version }}.tar.gz"
+spark_mirror: "https://dlcdn.apache.org/spark/spark-{{ spark_version }}/spark-{{ spark_version }}-bin-hadoop3.tgz"
+#spark_mirror: "https://archive.apache.org/dist/spark/spark-{{ spark_version }}/spark-{{ spark_version }}-bin-hadoop3.tgz"
+# ============================================================
+# OPTIMISATION MÉMOIRE (cluster académique)
+# ============================================================
+memory_calculation_base: "{{ ansible_memtotal_mb // 1024 }}"
+
+# YARN
+yarn_nodemanager_memory_mb: "{{ (memory_calculation_base - 1) * 1024 }}"
+yarn_scheduler_min_allocation_mb: 512
+yarn_scheduler_max_allocation_mb: "{{ (memory_calculation_base - 1) * 1024 }}"
+
+# Spark
+spark_driver_memory: "1g"
+spark_executor_memory: "{{ '512m' if ansible_memtotal_mb < 8192 else '1g' }}"
+spark_yarn_am_memory: "512m"
+
+# ============================================================
+# HDFS
+# ============================================================
+hdfs_replication: 1
+hdfs_namenode_dir: "{{ data_root }}/namenode"
+hdfs_datanode_dir: "{{ data_root }}/datanode"
+hdfs_tmp_dir: "{{ data_root }}/tmp"

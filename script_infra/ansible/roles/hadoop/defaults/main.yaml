@@ -1,0 +1,10 @@
+---
+# Defaults Hadoop
+
+# Configuration HDFS
+hdfs_replication: 1
+
+# Directories
+hdfs_namenode_dir: "{{ data_root }}/namenode"
+hdfs_datanode_dir: "{{ data_root }}/datanode"
+hdfs_tmp_dir: "{{ data_root }}/tmp"

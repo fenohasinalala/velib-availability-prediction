@@ -1,0 +1,150 @@
+---
+# ============================================
+# Playbook de Diagnostic Hadoop
+# ============================================
+- name: Diagnostic Hadoop Cluster
+  hosts: all
+  gather_facts: yes
+  tasks:
+    
+    # ============================================
+    # VÉRIFICATIONS JAVA
+    # ============================================
+    - name: Vérifier JAVA_HOME
+      shell: |
+        echo "JAVA_HOME=${JAVA_HOME}"
+        which java
+        java -version 2>&1 | head -3
+      register: java_check
+      tags: [debug, java]
+    
+    - name: Afficher configuration Java
+      debug:
+        msg: "{{ java_check.stdout_lines }}"
+      tags: [debug, java]
+    
+    # ============================================
+    # VÉRIFICATIONS HADOOP
+    # ============================================
+    - name: Vérifier HADOOP_HOME
+      shell: |
+        echo "HADOOP_HOME=${HADOOP_HOME}"
+        ls -la {{ hadoop_install_dir }}/bin/hadoop
+        {{ hadoop_install_dir }}/bin/hadoop version | head -1
+      register: hadoop_check
+      environment:
+        HADOOP_HOME: "{{ hadoop_install_dir }}"
+      tags: [debug, hadoop]
+    
+    - name: Afficher configuration Hadoop
+      debug:
+        msg: "{{ hadoop_check.stdout_lines }}"
+      tags: [debug, hadoop]
+    
+    # ============================================
+    # VÉRIFICATIONS PERMISSIONS
+    # ============================================
+    - name: Vérifier permissions répertoires HDFS
+      shell: |
+        ls -la {{ data_root }}
+        ls -la {{ hdfs_namenode_dir }} 2>/dev/null || echo "NameNode dir missing"
+        ls -la {{ hdfs_datanode_dir }} 2>/dev/null || echo "DataNode dir missing"
+      register: perms_check
+      tags: [debug, permissions]
+    
+    - name: Afficher permissions
+      debug:
+        msg: "{{ perms_check.stdout_lines }}"
+      tags: [debug, permissions]
+    
+    # ============================================
+    # VÉRIFICATIONS CONFIGURATION
+    # ============================================
+    - name: Lire core-site.xml
+      shell: cat {{ hadoop_install_dir }}/etc/hadoop/core-site.xml
+      register: core_site
+      tags: [debug, config]
+    
+    - name: Afficher core-site.xml
+      debug:
+        msg: "{{ core_site.stdout_lines }}"
+      tags: [debug, config]
+    
+    - name: Lire hdfs-site.xml
+      shell: cat {{ hadoop_install_dir }}/etc/hadoop/hdfs-site.xml
+      register: hdfs_site
+      tags: [debug, config]
+    
+    - name: Afficher hdfs-site.xml
+      debug:
+        msg: "{{ hdfs_site.stdout_lines }}"
+      tags: [debug, config]
+    
+    - name: Lire workers
+      shell: cat {{ hadoop_install_dir }}/etc/hadoop/workers
+      register: workers_file
+      tags: [debug, config]
+    
+    - name: Afficher workers
+      debug:
+        msg: "{{ workers_file.stdout_lines }}"
+      tags: [debug, config]
+    
+    # ============================================
+    # VÉRIFICATIONS LOGS (si existent)
+    # ============================================
+    - name: Lister les fichiers de logs
+      shell: ls -lth {{ hadoop_install_dir }}/logs/*.log 2>/dev/null | head -10
+      register: log_files
+      failed_when: false
+      tags: [debug, logs]
+    
+    - name: Afficher liste des logs
+      debug:
+        msg: "{{ log_files.stdout_lines }}"
+      when: log_files.rc == 0
+      tags: [debug, logs]
+    
+    - name: Lire les dernières lignes du log NameNode
+      shell: tail -100 {{ hadoop_install_dir }}/logs/hadoop-*-namenode-*.log 2>/dev/null | grep -i "error\|exception\|failed" || echo "Pas d'erreur trouvée"
+      register: namenode_errors
+      when: inventory_hostname in groups['namenode']
+      tags: [debug, logs]
+    
+    - name: Afficher erreurs NameNode
+      debug:
+        msg: "{{ namenode_errors.stdout_lines }}"
+      when: 
+        - inventory_hostname in groups['namenode']
+        - namenode_errors.stdout_lines | length > 0
+      tags: [debug, logs]
+    
+    - name: Lire les dernières lignes du log DataNode
+      shell: tail -100 {{ hadoop_install_dir }}/logs/hadoop-*-datanode-*.log 2>/dev/null | grep -i "error\|exception\|failed" || echo "Pas d'erreur trouvée"
+      register: datanode_errors
+      when: inventory_hostname in groups['datanodes']
+      tags: [debug, logs]
+    
+    - name: Afficher erreurs DataNode
+      debug:
+        msg: "{{ datanode_errors.stdout_lines }}"
+      when: 
+        - inventory_hostname in groups['datanodes']
+        - datanode_errors.stdout_lines | length > 0
+      tags: [debug, logs]
+    
+    # ============================================
+    # TEST RÉSEAU
+    # ============================================
+    - name: Tester connectivité vers NameNode
+      shell: |
+        nc -zv {{ hostvars[groups['namenode'][0]]['ansible_default_ipv4']['address'] }} 9000 2>&1 || echo "Port 9000 inaccessible"
+        nc -zv {{ hostvars[groups['namenode'][0]]['ansible_default_ipv4']['address'] }} 9870 2>&1 || echo "Port 9870 inaccessible"
+      register: network_test
+      failed_when: false
+      tags: [debug, network]
+    
+    - name: Afficher test réseau
+      debug:
+        msg: "{{ network_test.stdout_lines }}"
+      tags: [debug, network]

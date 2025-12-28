@@ -1,0 +1,71 @@
+---
+# ============================================
+# TÂCHES SPÉCIFIQUES DATANODE
+# ============================================
+
+- name: Vérifier si le DataNode est en cours d'exécution
+  shell: |
+    {{ hadoop_install_dir }}/bin/hdfs --daemon status datanode
+  register: datanode_status
+  failed_when: false
+  changed_when: false
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  tags: [hadoop, datanode]
+
+- name: Démarrer le DataNode
+  shell: |
+    {{ hadoop_install_dir }}/bin/hdfs --daemon start datanode
+  args:
+    executable: /bin/bash
+  when: datanode_status.rc != 0
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  tags: [hadoop, datanode]
+
+- name: Attendre que le DataNode soit opérationnel
+  wait_for:
+    host: "{{ ansible_default_ipv4.address }}"
+    port: 9864
+    delay: 5
+    timeout: 60
+  tags: [hadoop, datanode]
+
+- name: Vérifier si le NodeManager YARN est en cours d'exécution
+  shell: |
+    {{ hadoop_install_dir }}/bin/yarn --daemon status nodemanager
+  register: nm_status
+  failed_when: false
+  changed_when: false
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  tags: [hadoop, datanode, yarn]
+
+- name: Démarrer le NodeManager YARN
+  shell: |
+    {{ hadoop_install_dir }}/bin/yarn --daemon start nodemanager
+  args:
+    executable: /bin/bash
+  when: nm_status.rc != 0
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+  tags: [hadoop, datanode, yarn]
+
+- name: Attendre que le NodeManager soit opérationnel
+  wait_for:
+    host: "{{ ansible_default_ipv4.address }}"
+    port: 8042
+    delay: 5
+    timeout: 60
+  tags: [hadoop, datanode, yarn]
+
+- name: Afficher l'état du DataNode
+  debug:
+    msg:
+      - "DataNode Web UI: http://{{ ansible_default_ipv4.address }}:9864"
+      - "NodeManager Web UI: http://{{ ansible_default_ipv4.address }}:8042"
+  tags: [hadoop, datanode]

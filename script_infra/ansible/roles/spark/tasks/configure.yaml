@@ -1,0 +1,59 @@
+---
+# ============================================
+# Configuration de Spark
+# ============================================
+
+# 1. Création des dossiers sur HDFS (Nécessite que HDFS soit UP)
+# On délègue cette tâche au NameNode car c'est lui qui a la commande 'hdfs' configurée
+- name: Créer le répertoire de logs Spark sur HDFS
+  shell: |
+    {{ hadoop_install_dir }}/bin/hdfs dfs -mkdir -p /spark-logs
+    {{ hadoop_install_dir }}/bin/hdfs dfs -chmod 1777 /spark-logs
+  environment:
+    HADOOP_HOME: "{{ hadoop_install_dir }}"
+    JAVA_HOME: "{{ java_home }}"
+    USER: "{{ hadoop_user }}"
+  run_once: true
+  delegate_to: "{{ groups['namenode'][0] }}"
+  become: yes
+  become_user: "{{ hadoop_user }}"
+  ignore_errors: yes
+  tags: [spark, configure]
+
+# 2. Configuration des fichiers de conf Spark
+- name: Configurer spark-defaults.conf
+  template:
+    src: spark-defaults.conf.j2
+    dest: "{{ spark_install_dir }}/conf/spark-defaults.conf"
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0644
+  tags: [spark, configure]
+
+- name: Configurer spark-env.sh
+  template:
+    src: spark-env.sh.j2
+    dest: "{{ spark_install_dir }}/conf/spark-env.sh"
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0755
+  tags: [spark, configure]
+
+# 3. Configuration de l'environnement utilisateur (.bashrc)
+- name: Ajouter les variables Spark au .bashrc
+  blockinfile:
+    path: "/home/{{ hadoop_user }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED SPARK ENV"
+    block: |
+      # SPARK VARIABLES
+      export SPARK_HOME={{ spark_install_dir }}
+      export PATH=$PATH:$SPARK_HOME/bin:$SPARK_HOME/sbin
+
+      # LIEN ENTRE SPARK ET HADOOP (Crucial pour YARN)
+      export HADOOP_CONF_DIR={{ hadoop_install_dir }}/etc/hadoop
+      export YARN_CONF_DIR={{ hadoop_install_dir }}/etc/hadoop
+      
+      # Python 3 pour PySpark
+      export PYSPARK_PYTHON=python3
+      export PYSPARK_DRIVER_PYTHON=python3
+  tags: [spark, configure]

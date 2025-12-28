@@ -1,0 +1,83 @@
+---
+# ============================================
+# Configuration Hadoop - COMMUN À TOUS LES NŒUDS
+# ============================================
+- name: Créer le répertoire pour les PID Hadoop (Persistant après reboot)
+  file:
+    path: "{{ hadoop_install_dir }}/pids"
+    state: directory
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0755
+  tags: [hadoop, configure]
+
+- name: Créer les répertoires de données HDFS et forcer les permissions
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0755
+    recurse: yes          
+  loop:
+    - "{{ hdfs_tmp_dir }}"
+    - "{{ hdfs_namenode_dir }}"
+    - "{{ hdfs_datanode_dir }}"
+  become: true            
+  tags: [hadoop, configure]
+
+- name: Configurer hadoop-env.sh
+  template:
+    src: hadoop-env.sh.j2
+    dest: "{{ hadoop_install_dir }}/etc/hadoop/hadoop-env.sh"
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0644
+  tags: [hadoop, configure]
+
+- name: Distribuer les fichiers de configuration XML
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ hadoop_install_dir }}/etc/hadoop/{{ item }}"
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0644
+  loop:
+    - core-site.xml
+    - hdfs-site.xml
+    - yarn-site.xml
+    - mapred-site.xml
+  tags: [hadoop, configure]
+
+- name: Configurer le fichier workers
+  template:
+    src: workers.j2
+    dest: "{{ hadoop_install_dir }}/etc/hadoop/workers"
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0644
+  tags: [hadoop, configure]
+
+- name: Configurer les variables d'environnement Hadoop dans .bashrc
+  blockinfile:
+    path: "/home/{{ hadoop_user }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED HADOOP ENV"
+    block: |
+      export HADOOP_HOME={{ hadoop_install_dir }}
+      export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+      export HADOOP_LOG_DIR=$HADOOP_HOME/logs
+      export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+      export JAVA_HOME={{ java_home }}
+    create: yes
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+  tags: [hadoop, configure]
+
+- name: Créer le répertoire des logs Hadoop
+  file:
+    path: "{{ hadoop_install_dir }}/logs"
+    state: directory
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    mode: 0755
+  tags: [hadoop, configure]
