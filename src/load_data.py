@@ -10,9 +10,9 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 HDFS_ROOT = "hdfs://localhost:9000/user/hadoop/data"
-PARQUET_PATH = f"{HDFS_ROOT}/parquet/"
-JSON_PATH = f"{HDFS_ROOT}/json/"
-METEO_PATH = f"{HDFS_ROOT}/meteo/"
+PARQUET_PATH = f"{HDFS_ROOT}/parquet/**"
+JSON_PATH = f"{HDFS_ROOT}/json/**"
+METEO_PATH = f"{HDFS_ROOT}/meteo/**"
 OUTPUT_PATH = f"{HDFS_ROOT}/data_with_meteo_final"
 URL_HOLIDAYS = "https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/exports/csv?use_labels=true"
 
@@ -24,14 +24,19 @@ def load_data_from_hdfs():
     df_json = None
 
     try:
-        df_parquet = spark.read.parquet(PARQUET_PATH)
+        df_parquet = spark.read \
+            .option("recursiveFileLookup", "true") \
+            .parquet(PARQUET_PATH)
         count = df_parquet.count()
         print(f"Loaded parquet: {count} records")
     except Exception as e:
         print(f"Parquet files not found or corrupted: {e}")
 
     try:
-        df_json_raw = spark.read.option("multiline", "true").json(JSON_PATH)
+        df_json_raw = spark.read \
+            .option("multiline", "true") \
+            .option("recursiveFileLookup", "true") \
+            .json(JSON_PATH)
         df_json = df_json_raw.select(F.explode("records").alias("rec")).select("rec.fields.*")
 
         if "coordonnees_geo" in df_json.columns:
@@ -68,6 +73,7 @@ def load_meteo_hdfs():
     df_meteo = spark.read \
         .option("header", "true") \
         .option("inferSchema", "true") \
+        .option("recursiveFileLookup", "true") \
         .csv(METEO_PATH)
 
     return df_meteo \
