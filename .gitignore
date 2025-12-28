@@ -5,3 +5,4 @@ data
 notebooks/catboost_info
 notebooks/*.bin
 .cache.sqlite
+notebooks/*.pkl
