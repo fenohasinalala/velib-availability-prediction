@@ -1,19 +1,20 @@
-# 🚲 Prédiction de Disponibilité Vélib' - Paris
+# 🚲 Prédiction de Disponibilité Vélib - Pipeline ETL & Machine Learning
 
-Ce projet implémente une solution de **Machine Learning** pour prédire l'offre et la demande des stations Vélib' à Paris. Il utilise une approche de régression multi-cibles (`MultiOutputRegressor`) pour anticiper simultanément le nombre de vélos et de bornettes disponibles, en s'appuyant sur l'historique d'utilisation, la météo et les vacances scolaires.
+Ce projet implémente un pipeline de données complet (End-to-End) pour analyser et prédire la disponibilité des vélos (mécaniques et électriques) et des places dans les stations Vélib' Métropole. Il intègre des données météorologiques et calendaires pour affiner les prédictions grâce à des modèles de Machine Learning distribués via Spark.
 
-## 🎯 Objectifs
 
-L'objectif est d'optimiser la régulation des flottes de vélos en libre-service en fournissant des prédictions précises à court terme.
-Le modèle prend en compte :
+## 📖 Description du Projet
 
-* **Contextuel** : Heure, jour, jour férié, vacances scolaires (API Éducation Nationale).
-* **Météorologique** : Température, précipitations, humidité (API Open-Meteo).
-* **Station** : Capacité, coordonnées, arrondissement.
+L'objectif est de fournir une brique technologique capable de :
 
-## 💾 Données et Sources
+1. **Collecter** les données temps réel de disponibilité des stations Vélib.
+2. **Enrichir** ces données avec l'historique météo (Open-Meteo) et les vacances scolaires.
+3. **Traiter** de gros volumes de données via **PySpark** sur un cluster Hadoop/HDFS.
+4. **Entraîner** des modèles prédictifs performants (XGBoost, CatBoost, LightGBM) pour anticiper la demande.
 
-Le dataset agrège trois sources principales pour la période **Octobre 2024 - Décembre 2025** :
+## 🏗 Architecture & Données
+
+Le projet s'appuie sur trois sources de données principales :
 
 1. **Vélib' Métropole (Open Data Paris)** :
 * *Source* : [API Vélib' Métropole](https://opendata.paris.fr/explore/dataset/velib-disponibilite-en-temps-reel/information/)
@@ -35,95 +36,104 @@ Le dataset agrège trois sources principales pour la période **Octobre 2024 - D
 * *Source* : [Data Éducation Gouv](https://data.education.gouv.fr/)
 * *Usage* : Enrichissement des features temporelles (`is_holiday`).
 
+**Stack Technique :**
 
+* **Langage** : Python 3.x
+* **Big Data** : Apache Spark (PySpark), HDFS (Hadoop Distributed File System)
+* **Machine Learning** : Scikit-Learn, XGBoost, LightGBM, CatBoost, Optuna
+* **Data Science** : Pandas, NumPy, Seaborn, Matplotlib
 
 ## 📂 Structure du Projet
 
 ```bash
 .
-├── data/                  # Dossier de stockage (non versionné)
-│   ├── parquet/           # Données brutes Vélib'
-│   ├── json/              # Données brutes Vélib'
-│   └── meteo/             # Données météo récupérées
-├── src/                   
-│   ├── get_meteo_data.py  # Script d'extraction météo (Open-Meteo)       
-│   
-├── notebooks/                   
-│   ├── load_data.ipynb          # Pipeline ETL : Fusion Vélib' + Météo + Vacances
-│   ├── data_exploration.ipynb   # EDA : Clustering stations & Analyse temporelle  
-│   └── model_training.ipynb   # Entraînement, Validation Croisée & Optimisation
-├── docs/  
-└── requirements.txt       # Dépendances du projet
+├── docs/                       # Rapport technique
+├── script_infra/               # Scripts pour les VMs, HDFS, déploiement du cluster
+├── notebooks/                  # Jupyter Notebooks pour l'analyse et le ML
+│   ├── data_exploration.ipynb  # Analyse exploratoire (EDA), corrélations
+│   ├── model_comparison.ipynb  # Benchmark des modèles (XGBoost, LGBM, etc.)
+│   ├── model_training.ipynb    # Entraînement final et tuning (Optuna)
+│   └── pipeline_latest.pkl     # Pipeline de modèle sérialisé
+├── src/                        # Scripts Python pour l'ETL et l'ingestion
+│   ├── download.py             # Script d'ingestion API Vélib vers HDFS (JSON)
+│   ├── get_meteo_data.py       # Script d'ingestion API Météo vers HDFS
+│   └── load_data.py            # Pipeline ETL Spark (Nettoyage, Jointure, Feature Eng.)
+└── requirements.txt            # Liste des dépendances Python
 
 ```
 
-## 🛠️ Installation et Configuration
+## ⚙️ Prérequis & Installation
 
-### Prérequis
+### Prérequis Système
 
-* **Python 3.9** ou supérieur.
-* `pip` pour la gestion des paquets.
+* Un environnement Python 3.8+
+* Un cluster Hadoop/Spark fonctionnel (local ou distribué) avec HDFS configuré.
+* Java (pour Spark).
 
-### Installation
+### Installation des dépendances
 
-1. Clonez le dépôt :
-```bash
-git clone https://git.inge.re/hasina.vagno/challenge-apprentissage-automatique.git
-cd challenge-apprentissage-automatique
+Installez les bibliothèques nécessaires via `pip` :
 
-```
-
-
-2. Installez les dépendances :
 ```bash
 pip install -r requirements.txt
 
 ```
 
+*Note : Assurez-vous que les variables d'environnement `HADOOP_HOME` et `SPARK_HOME` sont correctement définies.*
+
 ## 🚀 Utilisation
 
-Pour reproduire l'entraînement complet, suivez le pipeline :
+Le pipeline s'exécute en trois étapes principales.
 
-1. **Récupération des données météo** :
-Ce script récupère l'historique horaire correspondant à votre période d'analyse.
+### 1. Ingestion des Données
+
+Lancez les scripts pour récupérer les données brutes et les stocker sur HDFS.
+
+* **Récupération des données Vélib (Temps Réel) :**
 ```bash
-python src/get_meteo_data.py
+spark-submit --master local  --driver-memory 512m --executor-memory 512m --executor-cores 1 src/download.py >> src/download.log 2>&1
 
 ```
 
 
-2. **Préparation du Dataset (`load_data.ipynb`)** :
-Exécutez ce notebook pour fusionner les JSON Vélib' avec les données météo et générer le fichier `data_with_meteo.parquet`.
-* *Input* : Données brutes JSON/Parquet + CSV Météo.
-* *Output* : Dataset nettoyé et enrichi.
+*Ce script interroge l'API OpenData Paris et sauvegarde les réponses en JSON dans `hdfs:///user/hadoop/data/json`.*
+* **Récupération des données Météo :**
+```bash
+spark-submit --master local  --driver-memory 512m --executor-memory 512m --executor-cores 1 src/get_meteo_data.py --start-date 2024-01-01 --end-date 2024-12-31 >> src/get_meteo_data.log 2>&1
+
+```
 
 
-3. **Entraînement des Modèles (`model_training.ipynb`)** :
-Ce notebook lance la comparaison des modèles (CatBoost, XGBoost, LightGBM, Random Forest) et l'optimisation des hyperparamètres.
-* *Optimisation* : **Optuna** est utilisé pour tuner les hyperparamètres.
-* *Métrique* : Multi-RMSE (Root Mean Squared Error).
+*Ce script télécharge l'historique météo pour Paris et sauvegarde en CSV dans `hdfs:///user/hadoop/data/meteo`.*
+
+### 2. Traitement ETL
+
+Exécutez le script de chargement pour fusionner les sources, nettoyer les données et créer les features.
+
+```bash
+spark-submit --master local  --driver-memory 512m --executor-memory 512m --executor-cores 1 src/load_data.py >> src/load_data.log 2>&1
 
 
+```
 
-## 📊 Résultats et Performance
+* Lit les fichiers JSON (Vélib) et CSV (Météo) depuis HDFS.
+* Ajoute les données de vacances scolaires.
+* Effectue le Feature Engineering (ratio vélos/bornes, sin/cos heure, etc.).
+* Sauvegarde le dataset final nettoyé au format **Parquet** dans `hdfs:///user/hadoop/data/data_with_meteo_final`.
 
-Le modèle **CatBoostRegressor** (en mode MultiOutput) a démontré les meilleures performances globales sur le jeu de test.
+### 3. Analyse et Modélisation
 
-### Métriques Clés
+Ouvrez les notebooks Jupyter pour explorer les données et entraîner les modèles.
 
-* **RMSE (Erreur Moyenne)** : ~0.28 (sur données normalisées)
-* **R² Score (Vélos)** : **0.87** (±0.02)
-* **R² Score (Bornettes)** : **0.82** (±0.03)
+1. **Exploration (`data_exploration.ipynb`)** : Visualisation de la distribution des vélos, matrices de corrélation, impact de la météo.
+2. **Comparaison (`model_comparison.ipynb`)** : Testez plusieurs algorithmes (RandomForest, XGBoost, CatBoost) pour identifier le plus performant.
+3. **Entraînement (`model_training.ipynb`)** : Entraînement final, optimisation des hyperparamètres avec **Optuna** et export du modèle (`pipeline_XX_XX_XX.pkl`).
 
-### Benchmark Rapide
+## 📊 Résultats & Modèles
 
-| Modèle | R² Global | Temps Entraînement | Usage |
-| --- | --- | --- | --- |
-| **CatBoost** | **0.87** | ~45 min | Production |
-| XGBoost | 0.85 | ~38 min | Comparaison |
-| LightGBM | 0.83 | ~20 min | Rapide |
+Le projet compare plusieurs approches de régression multi-sorties (MultiOutputRegressor) pour prédire simultanément :
 
-## 👤 Auteurs
+* Le nombre de vélos mécaniques disponibles.
+* Le nombre de vélos électriques disponibles.
 
-- Ny Hasina VAGNO
-- Lova RAFANOMEZANTSOA
+Les variables les plus importantes identifiées par le modèle incluent la capacité de la station, le statut "mécanique" et les ratios d'occupation historiques.
