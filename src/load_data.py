@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -96,6 +97,35 @@ def get_holidays_driver():
         return spark.createDataFrame([], schema="holiday_date date, is_holiday int")
 
 
+def feature_engineering(df):
+    print(">>> Applying feature engineering...")
+
+    df_fe = df
+
+    df_fe = df_fe.withColumn("hour", F.hour("duedate"))
+    df_fe = df_fe.withColumn("month", F.month("duedate"))
+    df_fe = df_fe.withColumn("dayofweek", F.dayofweek("duedate") - 1)
+    df_fe = df_fe.withColumn("is_weekend", F.when(F.col("dayofweek") >= 5, 1).otherwise(0))
+
+    df_fe = df_fe.withColumn("hour_sin", F.sin(2 * np.pi * F.col("hour") / 24))
+    df_fe = df_fe.withColumn("hour_cos", F.cos(2 * np.pi * F.col("hour") / 24))
+    df_fe = df_fe.withColumn("dow_sin", F.sin(2 * np.pi * F.col("dayofweek") / 7))
+    df_fe = df_fe.withColumn("dow_cos", F.cos(2 * np.pi * F.col("dayofweek") / 7))
+
+    df_fe = df_fe.withColumn("capacity",
+                             F.when(F.col("capacity") == 0, 1).otherwise(F.col("capacity"))
+                             )
+    df_fe = df_fe.withColumn("bikes_ratio", F.col("numbikesavailable") / F.col("capacity"))
+    df_fe = df_fe.withColumn("docks_ratio", F.col("numdocksavailable") / F.col("capacity"))
+
+    if "rain" in df.columns:
+        df_fe = df_fe.withColumn("is_raining",
+                                 F.when(F.col("rain") > 0, 1).otherwise(0)
+                                 )
+
+    return df_fe
+
+
 def main():
     print("=" * 60)
     print("Starting Velib ETL Pipeline")
@@ -121,11 +151,13 @@ def main():
     print(f"Total holiday dates: {df_holidays.count()}")
 
     print(">>> Adding holiday information...")
-    df_final = df_merged \
+    df_with_holidays = df_merged \
         .withColumn("date_only", F.to_date("duedate")) \
         .join(df_holidays, F.col("date_only") == df_holidays.holiday_date, how="left") \
         .fillna({"is_holiday": 0}) \
         .drop("holiday_date", "date_only")
+
+    df_final = feature_engineering(df_with_holidays)
 
     print(f">>> Writing final dataset to: {OUTPUT_PATH}")
     df_final.write.mode("overwrite").parquet(OUTPUT_PATH)
